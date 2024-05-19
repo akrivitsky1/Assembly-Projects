@@ -1,0 +1,60 @@
+	.EQU GET_NUM, $E01
+	.EQU GET_STR, $E04
+	.EQU PUT_STR, $E05
+   	.EQU PUT_NL, $E06
+	.EQU MAXCHARS, 100
+
+        	LDS# $E00 ;loads miniOS
+BEGGINING:    
+	PSH# SIZE_LENGTH;print the string
+        	PSH# SIZEARRAY ;prints string
+        	JSR PUT_STR ; prints input to screen 
+        	ADS# 2
+        	JSR GET_NUM ;gets num for the size of the array and is stored in ACC
+       	STA N ; stores size of array string in var N
+	LDF# $000 ; creates frame pointer incrementer to check if program has been run twice
+	PSH# STRING_LENGTH ;push the string length
+	PSH# STRING ;prints string
+   	JSR PUT_STR ;printing out prompt
+
+COMPARE1:     
+	CMF# $002 ;compares the frame pointer to see if 2 loops have been done
+        	JEQ END    ;jumps to end if it is equal to 2 loops
+        	 
+FOR1:  	
+	PSH# MAXCHARS	;string input buffer
+	PSH# BUFFER
+	PSH# ACTUAL
+	JSR GET_STR  ;   get string from user
+	ADS# 3
+        	STA+ ARRAY    ;stores string into ARRAY
+
+PRINT1:  
+	LDX N ;we load in the size of the array
+	SBX# $001 ;subtract the size by one
+       	STX INDEX ; store that value in index
+        	LDC* ARRAY ;load in the character at that index
+        	STA TEMP ;store it in temp
+	PSH ACTUAL ;string buffer instructions
+	PSH# BUFFER
+        	JSR PUT_STR    ; puts character out to the screen
+    	CMX# $000
+	JLT PRINT1	;keeps repeating loop untill all of string is reversed and printed
+	JMP loop	;jumps to loop once it is done
+
+loop:      
+	ADF# $001	;adds one to the frame pointer counter
+      	JMP BEGGINING	;restarts program  
+
+END:       
+	HLT    ;stops program
+
+STRING: .CHAR 'Enter a string ', STRING_LENGTH ;Defines the string
+SIZEARRAY: .CHAR 'Enter size of the string ', SIZE_LENGTH
+reverse: .CHAR ':The strings mirror image is ', STRING_REVERSE ;Defines the string
+N: .WORD 0 ; number of array 
+ARRAY:    .BLKW    20
+ACTUAL:	.BLKW 1 ;Actual length of the character
+BUFFER:	.BLKW (MAXCHARS+3)/2 ;buffer length
+INDEX: .BLKW 1
+TEMP: .BLKW 1

@@ -1,0 +1,90 @@
+	.EQU PUT_STR, $E05
+    	.EQU PUT_NL, $E06
+	.EQU GET_NUM, $E01
+	.EQU PUT_NUM, $E00
+		LDS# $E00
+MAIN:
+		PSH# ARR	;pushed every single element of the array
+		PSH# num_arr	
+		PSH MAXN	; not direct addressing, we needed the not exact location
+		JSR LOAD	;loads in string inputs
+		
+LOAD: 		POPF ;pops PC to FP 
+		POPX ; pop Max N to XR
+		PSHF ;pushes PC to stack
+		PSH# prompt_n ;prints prompt for n
+		PSH# prompt;print the string
+    		JSR PUT_STR 
+    		ADS# 2
+		JSR GET_NUM ;gets num
+		STA num_array	;stores array number in num_array
+
+Check1:		CMA# $000 ;compares to 0
+		JGT Check2	;checks if greater than 0 then can go to second check
+		PSH# input ;prints wrong input msg
+		PSH# wrong_input;print the string
+    		JSR PUT_STR 
+		JMP LOAD
+Check2:		CMX num_array ;compares with num of array
+		JGE next	;if it is less than that of array size jumps to next step
+		PSH# input ;prints invalid input msg
+		PSH# wrong_input
+    		JSR PUT_STR 	
+		JMP LOAD	;if doesent pass check restarts input selection
+next:		POPF ;PC into FP
+		POPX ; num_array into XR
+		LDA  num_array ; store in array
+		STX  num_array	 ;double derefrence	
+		STA*  num_array
+		LDX# $000 ;load in 0 to get ready to use XR register for incrementing
+		POPA	;pop out ACC
+		STA ARRAY	;store this in ARRAY
+		PSHF	;PSH FP back into Stack
+LOOP: ;loading values into array		
+		JSR GET_NUM	 ;get_num jumps to ACC
+		STA& ARRAY	;stores location of array in ARRAY
+		ADX# $001	;increment XR for loop
+		CMX* num_array	;compares XR to array size 
+		JLT LOOP	;jumps back if less than array size 
+RTN	;Returns last call from stack
+SORT:
+		LDA* num_array ;load the starting address
+		STA* num_array ;stores address
+		LDX* ARRAY ;loads in the array to accumulator
+		STX MIN ;stores that value of the array into min
+		ADX $001 ; gets the next value of the array
+		STF NEXT_VAL ;stores it into the frame pointer 
+		CMF MIN ;compares against MIN
+		JLT SWAP ; if less than MIN, do swap
+SORT_START:		LDA* num_array ;loads in num_array
+		ADA# num_array ; adds one to the array
+		STA* num_array ; stores num_array
+		CMX MAXN ; compares to see if it is the end of the array
+		JLT PRINT1 ;prints out the statement if it is end of the array
+		JMP SORT ;if not jump to beginning of sort
+SWAP:
+		LDX ARRAY ; loads in array again
+		LDF NEXT_VAL ; loads in frame pointer
+		STX NEXT_VAL ; stores it in the array at that MIN element spot
+		ADX $001 ; Add one to the array
+		STX MIN ; Store the old min the next value of the array
+		JMP SORT_START ;goes back to the sorting
+		
+PRINT1:		LDA+ ARRAY
+		JSR PUT_NUM
+		ADX# $001
+		CMX num_array
+		JLT PRINT1
+		HLT
+;VARS FOR LOAD
+prompt: .CHAR 'Enter the number of elements ', prompt_n ;Defines the string
+wrong_input: .CHAR 'Wrong input ', input ;Defines the string
+num_array: .WORD 0 ; number of array 
+ARRAY:	.WORD	0
+;VARS FOR SORT
+MIN: .WORD 0	
+NEXT_VAL: .WORD 0
+;VARS FOR MAIN
+MAXN:	.WORD 10 
+ARR:	.BLKW	10
+num_arr: .WORD 	0 

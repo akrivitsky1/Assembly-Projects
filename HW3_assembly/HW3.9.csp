@@ -1,0 +1,40 @@
+	JSR $E01 ;Takes in the critical value from user input
+    	JSR $E01 ; Takes in the amount of data values we get from user input
+    	STA NumWord
+    	JLT $005 ; Checks to make sure amount of data values is number greater than 0, if it is we jump to line 8
+    	JMP $008
+    	LDA# $000 ; If it is not greater than 0, we load 0 into the accumulator
+    	JSR $E00 ; prints out 0 for the a wrong input
+    	JMP $001 ; jumps back to $001 to ask the data values again
+    	STA NumWord ;Stores whatever is in the accumulator to NumWord
+    	LDA M ;Loads in M
+    	JSR $E01 ;Asks for user input
+    	STA Data ;Stores user input to one of the data slots
+    	LDA M ; Loads M into the accumulator again
+    	CMA# target ; compares if M is still less than target
+    	JMP $018 ; if M is greater than target then jumps out of the loop
+    	ADA# step ; if it is not M greater than target, it adds 1 to M
+   	 STA M ;stores new value for M
+    	JMP $009 ;jumps back to the beginning
+    	LDA Data ;load in the values from data
+    	LDA Critical ; Load in the critical value
+    	CMA# Data ;compare values 
+    	INC $205 ;increments if its less than, so increments counter1
+    	JMP $024 ;jumps to the end of the loop
+    	INC $206 ;increments the counter2 if it is greater than critical value
+    	JMP $018 ; jump to beginning of the loop
+    	LDA Counter1 ;load counter1
+    	JSR $E00 ;print output
+    	LDA Counter2 ;load counter 2
+    	JSR $E00 ;print out counter2
+   	 HLT
+    	.EQU @,200
+    Critical: .WORD $E01
+    NumWord: .WORD $001 
+    Data: .blkw NumWord
+    .EQU target, NumWord
+    .EQU step, 1
+    M: .WORD 0 ; iterator for the first loop which stores the values in
+    N: .WORD 0 ; operator for the second loop which compares the values
+    Counter1: .WORD 0 ; Less than counter
+    Counter2: .WORD 0 ; greater than counter

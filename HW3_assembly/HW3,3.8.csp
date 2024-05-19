@@ -1,0 +1,8 @@
+	LDA X ;loads accumulator with hexadecimal value
+    	SHRA ;shifts bits to the right to check if the number is even or not
+    	JNE $005 ;checks overflow at the least significant bit, if OV=0, then the bit is a 1. Goes to halt if its a 0
+    	SHLA ; if bit is a 1, then we shift to the left and return to original place
+    	JMP $006 ; jumps to Halt location
+    	XOR X ;inverts the sign bit 
+    	HLT ; Stops the program
+	X: .WORD $0E0F03 ; Initial value

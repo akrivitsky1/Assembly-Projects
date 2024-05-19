@@ -1,0 +1,28 @@
+	.EQU GET_STR, $E04
+	.EQU PUT_STR, $E05
+   	.EQU PUT_NL, $E06
+	.EQU MAXCHARS, 1
+	LDS# $E00	;Loads MiniOS
+
+MAIN: 	PSH# Length1 ;push the string length
+	PSH# MSG1 ;prints string
+   	JSR PUT_STR ;takes in input
+   	ADS# 2
+	PSH# MAXCHARS	;pushes buffer string instructions
+	PSH# BUFFER
+	PSH# ACTUAL
+	JSR GET_STR ;gets the string
+	ADS# 3
+
+PRINT:	ADA# $002 ;adds 2 to the ACC value
+	PSH ACTUAL	;string buffer instructions
+	PSH# BUFFER
+	JSR PUT_STR ;prints the ascie value character plus two
+	ADS# 2
+	JSR PUT_NL ;newline
+	HLT
+	
+
+MSG1:	.CHAR 'Enter a character please', Length1 ;prompt for the user
+ACTUAL:	.BLKW 1 ;Actual length of the character
+BUFFER:	.BLKW (MAXCHARS+3)/2 ;buffer length

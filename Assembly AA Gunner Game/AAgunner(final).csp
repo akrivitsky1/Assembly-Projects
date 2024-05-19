@@ -1,0 +1,953 @@
+		.EQU KBD_CNTL,  	$000
+		.EQU KBD_STAT,  	$000
+		.EQU KBD_DATA,  	$001
+		.EQU KBD_FLUSH, 	$40
+		.EQU TIM_CNTL,      	$030
+		.EQU TIM_STAT,      	$030
+		.EQU TIM_VALUE,     	$031
+		.EQU TIM_COUNT,     	$034
+         
+		.EQU INTERRUPT_ENA,           $80
+		.EQU RESET_READY_BIT,         $40
+		.EQU START_AFTER_LOAD,        $10
+		.EQU ENABLE_RESET_AND_START,  $D0
+		.EQU ENABLE_AND_RESET,        $C0
+
+		.EQU CRT_BUFFER,    	$100
+		.EQU BOTTOM_RIGHT,  	$313
+		.EQU CRT_XREG,      	$314
+		.EQU CRT_YREG,      	$315
+		.EQU CRT_CNTL,      	$316
+		.EQU CRT_DATA,      	$317
+		.EQU CRT_ROWS,      	$0E
+		.EQU CRT_COLS,      	$26
+        		.EQU CLEAR_DISPLAY, 	$01
+		.EQU HOME,		$04
+
+		.EQU PUT_NUM,       	$E00      ; MINI_OS JSRS
+		.EQU GET_NUM,       	$E01
+		.EQU PUT_STR,       	$E05
+		.EQU PUT_NL,        	$E06
+		.EQU PUT_NUM2,      	$E07
+		.EQU PUT_CHR,       	$E08
+		.EQU QUIT,		'x'
+		.EQU NONE,		15
+		.EQU TOP,		0
+		.EQU BOTTOM, 	13
+		.EQU LEFT, 		0
+		.EQU RIGHT, 	37
+		.EQU RIGHT_UP, 3
+		.EQU RIGHT_LEFT, 4
+		.EQU RIGHT_RIGHT, 5
+		.EQU PLAY_DELAY, 1 ; # of timer iterations before start
+    		.EQU max_rowsize, 7
+    		.EQU max_lengthships, 5
+    		.EQU max_bullets,  7
+    		.EQU bullet_start,  10
+    		.EQU max_bombs, 19
+    
+		LDS#  	$E00
+		CIE
+		psh#	turretX
+		jsr 	startGame
+		ads#	1
+		LDA#	KEYISR
+		STA 	$FF8
+		LDA#	ENABLE_AND_RESET
+		OUTB 	KBD_CNTL
+		LDA    	DELAY
+		OUTW   	TIM_VALUE
+		LDA#	TIMERISR
+		STA 	$FFB		; SET-UP TIMER ISR
+		LDA#	ENABLE_RESET_AND_START
+		OUTB 	TIM_CNTL
+		SIE
+MAINLOOP:	NOP
+    		PSH# 1
+    		; the seed of the rng flips between even and odd each call, leading to predictable behavior that was messing with our ship generation
+    		; we call it in the main loop to an unpredictable number of calls to it
+    		JSR random
+    		ads# 1
+		JMP	MAINLOOP
+
+; int	getChar(int x, int y) places crt[y][x] in accumulator
+		.equ	getCharX, 4 
+		.equ	getCharY, 3
+		.equ	getCharTemp, 0
+GetChar:
+		BGN#	1
+		lda !	getCharY
+		mul#	38
+		ada !	getCharX
+		ada#	CRT_BUFFER
+		sta !	getCharTemp
+		inb* !	getCharTemp
+		fin#	1
+		rtn	; GetChar()
+
+; int random(int max) leaves result in accumulator!
+	.equ	randomMax, 2 ;from pong code
+random:	
+	bgn#	0
+	lda	SEED
+	mul#	2779
+	ada#	1997
+	mod#	2048
+	sta	SEED
+	inc !	randomMax
+	mod !	randomMax
+	fin#	0
+	rtn
+	
+; void startGame(int *turretX)
+	.equ	startTurretX, 2
+startGame:  
+	BGN#	0
+	PSHA
+  	PSHX
+  	;turns var to contain -1
+  	NEG turrent_explosion
+	;gets start game setup
+	LDA#	PLAY_DELAY ; loads play delay
+	STA		TIMER_CNT ; loads timer_isr
+	LDA#	CLEAR_DISPLAY
+  	OUTB	CRT_CNTL ; CLEAR SCREEN
+	lda#	100
+	outB	CRT_YREG
+
+LDX# max_bombs - 1 ;loads the index register with the max amount of bombs
+LDA# 1 ;loads accumulator with 1
+NEGA ;makes it negative
+bomb_array_loop:
+  	STA+ Bomb_Xpos ;stores bombs x position
+  	SOJ bomb_array_loop ;stores the position in an array
+
+LDX# max_bullets-1 ;stores index register with max bullets
+Shoot_array_Loop:
+  	STA+  Shoot_Xpos ;stores position of bullet
+  	SOJ Shoot_array_Loop ;stores position in an array
+
+LDX# MAX_ROWSIZE-1
+Ship_array_Loop:
+  	STA+  SHIP_ARRAY_lenth ;stores length of ship
+  	SOJ Ship_array_Loop ; stores length of ship in an array
+	lda# RIGHT / 2
+	sta* ! startTurretX ;starts code for moving turret
+	psh* ! startTurretX
+	jsr showTurret ;displays turret on screen
+	ads# 1
+	jsr	 showGround ;displays ground on screen
+  	popx
+	popa
+	fin# 0
+	RTN	; startGame()
+
+KEYISR:  
+	PSHA
+  	;checking if turrent_explosion is -1 to disable key_isr
+ 	LDA turrent_explosion
+  	NEGA
+  	CMA# 1
+  	JNE Keydone ; jumps to keydone if not -1
+	;checks to see if X is pressed and game is stopped
+	lda# 0
+	outb KBD_CNTL ;stop game if press x
+	INB KBD_DATA
+	CMA#	'x'
+	JNE	KEY1
+	HLT		; HALT IF x
+  
+KEY1:
+  	cma#	$1B	; escape so arrow? ;up arrow for shooting bullets
+	jne	keydone	; jump if not escape, no non-escaped are relevant
+	inb	kbd_data	; read second escaped key
+	cma# $48	; if up arrow
+	jne	key2
+	lda# RIGHT_UP	; set to RIGHT_UP
+	jmp	RIGHTKey
+KEY2:	cma# $4B ; if left arrow move turret to left
+	jne	key3
+	lda# RIGHT_LEFT	; left arrow
+	jmp RIGHTkey
+KEY3:	cma# $4D ; if right arrow move turret to the right
+	jne KeyDone
+	lda# RIGHT_RIGHT	; right arrow
+RIGHTKey:	
+	psha
+	psh# turretX
+	jsr	moveTurret  
+	ads# 2
+
+Keydone:	lda# INTERRUPT_ENA ;ends key_isr
+	outb KBD_CNTL ;stops the keyboard isr
+	POPA
+	IRTN
+	
+; void moveTurret(char key, int* turretX)
+	.EQU moveTurretKey, 3
+	.EQU moveTurretX, 2
+moveTurret: 
+	bgn# 0
+	psha ;sets up stack for moving the turret
+	pshx
+	cma# RIGHT_UP ;goes to display bullet
+	jeq	 turretShoot
+	cma# RIGHT_RIGHT ;goes to display turret moving right
+	jeq	 turretRight
+	cma# RIGHT_LEFT ;goes to display turret moving left
+	jeq	 turretLeft
+
+turretShoot:
+    	LDX# max_bullets - 1
+setup_bullets:
+    	lda+ shoot_xpos
+    	NEGA ;used NEGA to compare CMA to -1 
+    	CMA# 1
+    	JEQ make_bullet ;jumps to make bullets
+    	soj setup_bullets ;redo the loop
+    	jmp turretAfter ;jump once done
+
+make_bullet:
+  	LDA* ! moveTurretX ;loads accumulator with a local variable
+	STA+  shoot_xpos ;stores the postion
+ 	LDA# bullet_start ;loads accumulator with the bullet start position
+  	STA+ shoot_ypos ;stores the y position of the bullet
+	jmp	turretAfter
+
+turretRight:
+	psh* ! moveTurretX ;pushes the value of moveTurretX to the stack
+	jsr	 eraseTurret ;erases the current turret
+	ads# 1
+	lda* ! moveTurretX ; moves turret to the right
+	cma# RIGHT
+	jge	 turretAfter ; jump to turret after
+	inc* ! moveTurretX ; increment the x position by one
+	psh* ! moveTurretX ;changes position of turret and displays new position
+	jsr	 showTurret ;
+	ads# 1
+	jmp turretAfter ;jumps to turretAfter
+
+turretLeft:
+	psh* ! moveTurretX ;pushes the value of moveTurretX to the stack
+	jsr	 eraseTurret ;erases the current turret
+	ads# 1
+	lda* ! moveTurretX ;moves turret to the left
+	cma# LEFT
+	jle	 turretAfter 
+	dec* ! moveTurretX ; decrement the x position by one
+	psh* ! moveTurretX ;changes position of turret and displays new position
+	jsr	 showTurret
+	ads# 1
+	jmp turretAfter ;jump to turret after
+
+turretAfter:
+	popx ;pops the xr from stack
+	popa ;pops the accumulator from stack
+	fin# 0
+	rtn ;returns from turret after
+
+; void showGround()
+showGround: 
+  	bgn# 0 ;sets up stack for showing ground
+	pshx ;pushes xr to stack
+	ldx# RIGHT ;loads value of right into xr
+
+showGroundChar:
+	pshx ;pushes xr to stack
+	psh# BOTTOM ;displays characters for the ground
+	psh# $AC
+	jsr putChar
+	ads# 3
+	soj	 showGroundChar ;goes til end of the screeen
+	popx ;pops the xr from stack
+	fin# 0
+	rtn ;returns from showGroundChar
+
+; void showTurret(int x)
+	.EQU	showTurretX, 3
+  	.EQU  tmpx, 0
+showTurret: 
+	bgn# 1
+	psha ;pushes accumulator to stack
+	pshx ;pushes xr to stack
+	; Draw Top of Turret
+	; Draw 'o^'
+	psh ! showTurretX
+	psh#  BOTTOM - 2 ; TODO: see if this is too low
+	psh# $F4
+	jsr putChar
+	ads# 3
+	; Draw '/'
+  	lda !  showTurretX ;loads accumulator with value of showTurretX
+  	sba#   1 ;subtracts one from accumulator
+  	sta !  tmpx ;stores that value in tmpx
+	psh !  tmpx ;pushes tmpx to stack
+	psh#  BOTTOM - 1 ;one less than the + sign on the turret
+	psh# '/' ;character for turret
+	jsr putChar
+	ads# 3
+	; Draw '\'
+  	lda !  showTurretX ;loads accumulator with showTurretX
+  	ada# 1 ;adds 1 to accumulator
+  	sta !  tmpx ;stores to tmpx
+	psh !  tmpx ;pushes tmpx to stack
+	psh#  BOTTOM - 1 ; pushes the x position of the turret
+	psh# '\\' ;pushes character to stack
+	jsr putChar
+	ads# 3
+	popx ;pops the xr
+	popa ;pops the accumulator
+	fin# 1
+	rtn	; showTurret()
+
+; void eraseTurret(int x)
+	.EQU eraseTurretX, 3
+  	.EQU  tmpx2, 0
+eraseTurret: 
+	bgn#  1
+	psha ;pushes accumulator to stack
+	pshx ;pushes xr to stack
+
+	; Erase tip
+	psh ! eraseTurretX ;pushes eraseTurretX to stack
+	psh#  BOTTOM - 2  ;pushes the x position to stack
+	psh# ' ' ;pushes blank to stack
+	jsr putChar
+	ads# 3
+	; Erase '/'
+  	lda !  eraseTurretX ;loads accumulator with eraseTurretX
+  	sba# 1 ;subtracts 1 from accumulator
+  	sta !  tmpx2 ;stores tmpx2 to accumulator
+	psh !  tmpx2 ;pushes tmpx2 
+	psh#  BOTTOM - 1 ;pushes x position to stack
+	psh# ' ' ;pushes character to stack
+	jsr putChar 
+	ads# 3
+	; Erase '\'
+  	lda !  eraseTurretX ;loads accumulator with eraseTurretX
+  	ada# 1 ;adds one to accumulator
+  	sta !  tmpx2 ;stores to tmpx2
+	psh !  tmpx2 ;pushes tmpx2 to accumulator
+	psh#  BOTTOM - 1 ;pushes x position
+	psh# ' ' ; pushes blank space to stack
+	jsr putChar
+	ads# 3
+	popx ;pops xr from stack
+	popa ;pops accumulator from stack
+	fin#  1
+	rtn	; showTurret()
+
+; void putChar(int x, int y, char c)
+	.EQU	putCharX, 5
+	.EQU	putCharY, 4
+	.EQU	putCharC, 3
+	.EQU	putCharTemp, 0
+
+putChar:	bgn# 	1 ;displays the character
+	psha 	;pushes accumulator to stack
+	lda !	putCharY ;loads accumulator with putCharY
+	mul#	38 ;multiply by 38
+	ada !	putCharX ;add accumulator by putCharX
+	ada#	CRT_BUFFER ;add accumulator to CRT_buffer
+	sta !	putCharTemp
+	lda !	putCharC
+	outb* !	putCharTemp ;display to screen
+	popa
+	fin#	1
+	rtn
+
+TIMERISR:
+  PSHA
+  LDA turrent_explosion
+  NEGA
+  CMA# 1
+  JEQ play_game
+  CMA# 0
+  JNE end_play
+  ; display the lose message and halt
+  ;clear screen and prints lose msg
+  LDA#	CLEAR_DISPLAY	;clear screen
+  OUTB	CRT_CNTL	; CLEAR SCREEN
+  lda#	15		; sets the row location where msg will be printed
+  outb	CRT_XREG
+  lda#	8		;sets the column location where msg will be printed
+  outb	CRT_YREG      
+  psh#	L_WINNER_LEN	;prints out loser message
+  psh#	L_WINNER
+  jsr	PUT_STR    ;puts msg to screen
+  ads#	2
+  lda#	NONE
+  lda#	100
+  outb	CRT_YREG
+  HLT
+  
+play_game:
+  PSH TurretX ; pushes turretX var
+  jsr play ;goes to our play function
+  ads# 1
+  ;put code here
+  JMP timer_isr_end
+
+end_play:
+  ; put explosion char and decrement turrent_explosion
+  ;draws explosion
+  PSH Turretx ;gets bombs x pos
+  PSH# Bottom - 1 ;gets bombs y pos
+  PSH# $D8	; pushes bomb character
+  jsr putchar ;prints the char
+  ads# 3
+  DEC turrent_explosion
+
+timer_isr_end:
+  LDA# ENABLE_AND_RESET
+  OUTB TIM_CNTL
+  POPA
+  IRTN
+
+; void generateShips()
+.EQU temp_speed, 0
+GenerateShips: 
+    bgn#  1 ;starts to draw the ship
+    psha ;pushes  accumulator to stack
+    pshx ;pushes xr to stack
+    LDX# MAX_ROWSIZE-1 ;loads xr with max size
+setup_ships:
+    lda+ SHIP_ARRAY_lenth ;load accumulator with ship_array_length value
+    NEGA			;used NEGA to compare CMA to -1 
+    CMA# 1 ; compares to 1
+    JEQ generation ;jump to generation of ship length
+    soj setup_ships ;keeps generating ships
+
+JMP end_generation ;jump to ending ships generation when game is over
+
+generation:
+  PSH frequency_ships ;pushes frequency_ships to stack
+  jsr random ;gets random value 
+  ads# 1
+  CMA# 0 ;compares to 0
+  JNE end_generation ; ends generation if it is equal to 0
+  PSH# 2
+  jsr random
+  ads# 1
+  ADA# 1
+  STA ! temp_speed  
+  PSH# 1 ;pushes 1 to stack
+  jsr random ;gets random value
+  ads# 1  
+  MUL# 2
+  MUL ! temp_speed ;multiplies by 2
+  SBA ! temp_speed ;subtracts 1
+  ; MUL * 2 * abs value of ship
+  ; SBA abs value of the ship
+  STA+ SHIP_ARRAY_direction ;stores to ship_array_direction array
+  CMA# 1 ;compare to 1 if 1 prints right ship
+  JEQ Ship_right ;jumps to ship right
+;ship left
+  LDA# RIGHT ;loads in Right to accumulator
+  STA+ SHIP_ARRAY_Xpos ;stores the x position of the ship
+  JMP after_generation ;jump to after generation when done
+Ship_right:
+  LDA# LEFT ;loads accumulator with Left
+  STA+ SHIP_ARRAY_Xpos ;stores accumulator with x position of ship
+
+after_generation:
+  psh# max_lengthships ;pushes max_length of ships tos tack
+  jsr random ;gets random value
+  ads# 1
+  ADA# 1 ;adds 1 to acc
+  STA+ SHIP_ARRAY_lenth ;stores in ship_array_lenth
+
+end_generation:
+  popx ;pops xr from stack
+  popa ;pops acc from stack
+  fin#  1
+  RTN ;returns from generates ships
+
+;void generate_bomb()
+.EQU  bomb_temp_acc, 1 ;local variables
+.EQU  bomb_temp_xr, 0
+
+generate_bomb:BGN# 2
+  PSHA ;pushes acc to stack
+  PSHX ;pushes xr to stack
+  PSH frequency_bombs ;pushes frequency_bomb to stack
+  JSR random ;gets random value 
+  ads# 1 
+  CMA# 0 ;compares to 0
+  JNE generate_bomb_end ;if equal to 0 generate bomb
+    
+  LDX# max_bombs-1 ;load into xr max bombs value -1
+setup_bombs:
+  lda+ bomb_xpos ;loads bombs x position to stack
+  NEGA			;used NEGA to compare CMA to -1 
+  CMA# 1 ;compares to 1
+  JEQ generate_bomb_main ;if equal jump to generate_bomb_main
+  soj setup_bombs
+JMP generate_bomb_end ;jump to generate bomb end
+
+generate_bomb_main:
+  PSH# Max_rowsize-1  ;push max_rowsize-1 to stack
+  JSR Random ;jump to random
+  ads#1
+  STX ! bomb_temp_xr ; stores bomb_temp_xr in xr
+  TAX ;transfer accumulator to xr
+  LDA+ ship_array_lenth ;load accumulator with value from ship_array_lenth
+  NEGA ;makes accumulator negative
+  CMA# 1 ;compares against 1
+  JEQ generate_bomb_end ;checks if its equal to generate_bomb_end
+  LDA+ ship_array_xpos ;loads accumulator with value from ship_array_xpos
+  STA ! bomb_temp_acc ;stores value in bomb_temp_acc
+  LDA ! bomb_temp_xr ;load value from bomb_temp_xr to accumulator
+  STX ! bomb_temp_xr ;stores bomb_temp_xr to xr
+  TAX ;transfers accumulator to xr
+  LDA ! bomb_temp_acc ;loads accumulator with value from bomb_temp_acc
+  STA+ bomb_xpos ; stores value from bomb_xpos
+;ACC = shipxpos
+;XR = bomb index
+;temp acc = shipxpos
+;temp xr = ship index
+  LDA ! bomb_temp_xr ;loads accumulator with bomb_temp_xr
+  ADA# 2 ;adds 2 to accumulator
+  STA+ bomb_ypos ;stores element from bomb_ypos in accumulator
+
+generate_bomb_end:
+  POPX ;pop xr
+  POPA ;pop acc
+  FIN# 2
+  RTN
+
+;void drawbombs(char bomb)
+.EQU bomb, 2
+draw_bomb: 
+  BGN# 0
+  PSHA ;pushes acc to stack
+  PSHX ;pushes xr to stack
+  LDX# max_bombs - 1
+ 
+Create_bomb_loop:
+  LDA+ bomb_Xpos ;loads bomb_xpos
+  NEGA
+  CMA# 1 ;compares against 1
+  JEQ bomb_Loop_after ;jumps if equal to 1
+
+  PSH+ bomb_xpos ;pushes the element of bomb_xpos to stack
+  PSH+ bomb_ypos ;pushes the element of bomb_ypos to stack
+  PSH ! bomb ; pushes bomb to stack
+  jsr putchar ;puts char to stack
+  ads# 3
+
+bomb_Loop_after:
+  soj Create_bomb_loop 
+  popx ;pops xr
+  popa ;pops acc
+  fin# 0
+  RTN
+
+; void move_bomb()
+move_bomb:BGN# 0
+  PSHA ;pushes acc to stack
+  PSHX ;pushes xr to stack
+  LDX# max_bombs - 1 ;loads xr with max_bombs
+
+Move_bomb_loop:
+  INC+ bomb_ypos
+  LDA+ bomb_ypos
+  CMA# BOTTOM - 1
+  JLE move_bomb_loop_after
+  LDA# 1
+  NEGA
+  STA+ bomb_xpos
+move_bomb_loop_after:
+  SOJ Move_bomb_loop
+  POPX ;pops xr
+  POPA ;pops acc
+  FIN# 0
+  RTN
+
+;void drawbullets(char bullet)
+.EQU bullet, 2 ;local variable
+
+drawbullets: 
+  BGN# 0
+  PSHA ;pushes acc
+  PSHX ; pushes xr
+  LDX# max_bullets - 1 ;loads xr with max_bullet-1
+ 
+Create_bullet_loop:
+  LDA+ shoot_Xpos ;loads shoot_Xpos to accumulator
+  NEGA ;negates the accumulator
+  CMA# 1 ;compares to 1
+  JEQ Shoot_Loop_after ;jumps if it equal to 1
+
+  PSH+ shoot_Xpos ;pushes shoot_Xpos
+  PSH+ shoot_ypos ;pushes shoot_ypos
+  PSH ! bullet ;pushes bullet
+  jsr putchar ; places character to the screen
+  ads# 3
+
+Shoot_Loop_after:
+  soj Create_bullet_loop
+popx ;pop the xr
+popa ;pop the acc
+fin# 0
+RTN
+
+;void drawships()
+.EQU temp_XR,  1 ;local variable
+.EQU ship_char, 0
+
+DrawShips: 
+  BGN# 2
+  PSHA ;pushes acc to stack
+  PSHX ;pushes xr to stack
+  LDX# MAX_ROWSIZE-1
+ 
+Create_loop:
+  LDA+ SHIP_ARRAY_lenth ;loads ship_array_lenth array
+  NEGA ;negate the accumulator
+  CMA# 1 ;compare to 1
+  JEQ DRAW_loop_after ;jump to draw loop after
+  LDA+ SHIP_ARRAY_DIRECTION   ;load accumulator with value of ship_array_direction
+  CMA# 1 ;compare to 1
+  JEQ shipRight ;jump to ship Right
+  ;shipleft logic below
+  LDA# $AB
+  STA ! ship_char 
+  JMP after_draw
+shipRight:
+  LDA# $BB
+  STA ! ship_char
+After_draw:
+  STX  !  temp_XR ;stores xr with temp_xr
+  LDX+  SHIP_ARRAY_lenth ;loasd xr with ship_array_lenth
+Draw_Loop:
+  LDA ! temp_xr ;load acc with temp_xr
+  STX ! temp_xr ;store xr with temp_xr
+  TAX ;transfer acc to xr
+  LDA+ ship_array_xpos ;loads accumulator with element of ship_array_xpos
+  ADA ! temp_xr ;adds temp_xr to accumulator
+  CMA# LEFT ;compares to Left
+  JLT Draw_Loop_after ;jumps if less than
+  CMA# RIGHT ;compares to right
+  JGT  Draw_Loop_after  ;jumps if greater than
+
+  PSHA ;push acc
+  ADX# 1 ;add 1 to xr
+  PSHX ;push xr
+  SBX# 1 ;subtract 1 from xr
+  PSH ! ship_char ;push ship_char
+  jsr putchar
+  ads# 3
+  LDA ! temp_xr ;load temp_xr to acc
+  STX ! temp_xr ;store xr with temp_xr
+  TAX ;transfer acc to xr
+
+  SOJ Draw_loop ;soj loop
+  LDX ! temp_XR ;load xr with temp_xr
+
+Draw_Loop_after:
+  soj Create_loop
+popx ;pop xr
+popa ;pop acc
+fin# 2
+RTN
+
+;void eraseShips() 
+.EQU temp_Erase_XR,  1 ;local variables
+.EQU erase_ship_char, 0
+Erase_ships:
+  BGN# 2
+  PSHA ;push acc
+  PSHX ;push xr
+  LDX# MAX_ROWSIZE-1 ;load xr with max rowsize-1
+
+erase_loop:
+  LDA+ SHIP_ARRAY_lenth  ;load acc with ship_array_lenth
+  NEGA ;negates acc
+  CMA# 1 ;compares acc to 1
+  JEQ Erase_Loop_after ;jumps if equal to 1
+  LDA# ' ' ;loads acc with blank
+  STA ! erase_ship_char ;stores acc with erase_ship_char
+  STX  !  temp_Erase_XR ;stores xr with temp_Erase_XR
+  LDX+  SHIP_ARRAY_lenth ;loads xr with ship_array_lenth value
+removing_Loop:
+  LDA ! temp_Erase_XR ;loads acc with temp_erase_xr
+  STX ! temp_Erase_XR;stores temp_erase_xr in xr
+  TAX ;transfer acc to xr
+  LDA+ ship_array_xpos ;load acc with x pos
+  ADA ! temp_Erase_XR ;add temp_erase_xr to acc
+  CMA# LEFT ;compare to left
+  JLT Erase_Loop_after  ;jump if less than
+  CMA# RIGHT ; compare to right
+  JGT  Erase_Loop_after; jump if greater than
+
+  PSHA ;pushes acc to stack
+  ADX# 1 ;adds one to xr
+  PSHX ; pushes xr to stack
+  SBX# 1 ;subtracts 1 from xr
+  PSH ! erase_ship_char ;pushes erase_ship_char
+  jsr putchar
+  ads# 3
+  LDA ! temp_Erase_XR ;loads acc with temp_erase_xr
+  STX ! temp_Erase_XR ;stores xr with temp_erase_xr
+  TAX ;transfer acc to xr
+
+  SOJ removing_Loop
+  LDX ! temp_Erase_XR
+
+Erase_Loop_after:
+  soj erase_loop
+popx ;pop xr
+popa ;pop acc
+fin# 2
+RTN
+
+; void move_bullet()
+move_bullet:BGN# 0
+  PSHA ;pushes acc to stack
+  PSHX ;pushes xr to stack
+  LDX# max_bullets - 1
+
+Move_bullet_loop:
+  DEC+ shoot_ypos ;decrement the shoot_ypos
+  LDA+ shoot_ypos ;load acc to shoot_ypos
+  CMA# TOP ;compares acc to top
+  JGE move_bullet_loop_after ;jumps if greater than
+  LDA# 1 ;load acc with 1
+  NEGA
+  STA+ shoot_xpos ;stores shoot_xpos
+move_bullet_loop_after:
+  SOJ Move_bullet_loop
+POPX ;pop xr
+POPA ;pop acc
+FIN# 0
+RTN
+  
+; void move_ships() // Moves all the ships
+move_ships: BGN# 0
+  PSHA ;pushes acc to stack
+  PSHX ;pushes xr to stack
+  LDX# MAX_ROWSIZE-1
+
+Move_loop:
+  LDA+ Ship_array_XPos ;loads acc with ship_array_xpos
+  ADA+ ship_array_direction ;adds to acc the ship_array_direction
+  STA+ Ship_array_XPos ;store acc with ship_array_xpos
+  CMA# LEFT ;compare acc with left
+  JGE ship_onscreen_left ;jump if greater than 
+  LDA# 1 ;load acc with 1
+  NEGA ;negate 1
+  STA+ ship_array_lenth ;store acc with ship_array_lenth
+  JMP move_loop_after ;jump when done
+ship_onscreen_left:
+  CMA# RIGHT ;compares acc against right
+  JLE  move_loop_after ;jumps if less than
+  LDA# 1 ;load acc with 1
+  NEGA ;negate acc
+  STA+ ship_array_lenth ;store ship_array_lenth
+move_loop_after:
+  SOJ move_loop
+POPX ;pop xr
+POPA ;pop acc
+FIN# 0
+RTN
+
+;void ship_collision()
+.EQU bullet_index, 1
+.EQU ship_index, 0
+ship_collision:
+  bgn# 2
+  PSHA
+  PSHX
+
+LDX# max_bullets - 1
+bullet_collosion_loop:
+  STX ! bullet_index
+  ; check if bullet exists (bullet_xpos == -1, continue)
+  LDA+ shoot_xpos
+  NEGA
+  CMA# 1
+  JEQ bullet_collosion_loop_end
+ 
+  
+  ; check if bullet is in ship rows
+  LDA+ SHOOT_YPOS
+  CMA# max_rowsize
+  JGT bullet_collosion_loop_end
+  SBA# 1
+
+  ; check if ship exists
+  STA ! ship_index
+  LDX ! ship_index
+  LDA+ ship_array_lenth
+  NEGA
+  CMA# 1
+  JEQ  bullet_collosion_loop_end
+  
+  ; ship xpos > bullet xpos, continue
+  LDA+ ship_array_xpos
+  LDX ! bullet_index
+  CMA+ shoot_xpos
+  JGT bullet_collosion_loop_end
+
+  ; if ship xpos + ship length < bullet xpos, continue
+  LDX ! ship_index
+  ADA+ ship_array_lenth
+  LDX ! bullet_index
+  CMA+ shoot_xpos
+  JLT bullet_collosion_loop_end
+
+  ; draw collision
+  LDX ! bullet_index
+  PSH+ shoot_xpos
+  PSH+ shoot_ypos
+  PSH# $D7
+  jsr putchar
+  ads# 3
+
+  ; delete ship and bullet
+  LDA# 1
+  NEGA
+  STA+ shoot_xpos
+  LDX ! ship_index
+  STA+ ship_array_lenth
+  
+bullet_collosion_loop_end:
+  LDX ! bullet_index 	; indexes the bullet_index
+  soj bullet_collosion_loop ; jumps back to bullet_collision_loop
+  POPX
+  POPA
+  fin# 2
+  rtn
+
+;void turrent_collision(int turretx)
+.EQU  turrentx,  2
+turrent_collision:
+  bgn# 0
+  PSHA
+  PSHX
+
+LDX# max_bombs - 1
+bomb_collosion_loop:
+  ; check if bomb exists (bomb_xpos == -1, continue)
+  LDA+ bomb_xpos
+  NEGA
+  CMA# 1
+  JEQ bomb_collosion_loop_end
+  
+  ; check if bomb is in turret top row
+  LDA+ bomb_ypos
+  CMA# BOTTOM - 2
+  JEQ Bomb_turrent_top
+
+  ; check if bomb is in turret bottom row
+  CMA# BOTTOM - 1
+  JEQ bomb_turrent_bottem
+
+Bomb_turrent_top:
+  ; if hit, jump bomb_collision
+  ; otherwise, jump bomb_collosion_loop_end
+  LDA+ bomb_xpos
+  CMA ! turrentx
+  JEQ bomb_collision
+  JMP bomb_collosion_loop_end
+
+bomb_turrent_bottem:
+  ; if not hit, jump bomb_collosion_loop_end
+  LDA ! turrentx
+  ; if turret_xpos - 1 > bomb_xpos, continue
+  SBA# 2
+  CMA+ bomb_xpos
+  JGT bomb_collosion_loop_end
+  ; if turret_xpos + 1 < bomb_xpos, continue
+  ADA# 4
+  CMA+ bomb_xpos
+  JLT bomb_collosion_loop_end
+
+bomb_collision:
+  ;erases turrent when hit by bomb
+  PSH ! TurrentX
+  JSR Eraseturret
+  ADS#1
+  ;sets timer for explosion frame
+  LDA# 10 ;sets timer
+  STA turrent_explosion ; stores timer
+  JMP BOMB_collision_end
+bomb_collosion_loop_end:
+  soj bomb_collosion_loop ; jumps back to loop 
+BOMB_collision_end:
+POPX	; pops ACC and XR from stack in order to preserve stack manipulation
+POPA
+fin# 0
+RTN
+
+; void play (int turret_x)
+  .EQU turret_x, 2
+play:
+  ;start of play 	
+  bgn#	0
+  PSHA
+  PSHX
+
+  ;Erasing 
+  jsr erase_ships
+  PSH# ' '
+  jsr drawbullets
+  ads# 1
+  PSH# ' ' ;push blanks space
+  jsr draw_bomb ;draw bombs
+  ads# 1
+
+  ;Moving
+  jsr move_ships
+  jsr move_bullet
+  jsr Move_bomb
+
+  ;Collision
+  jsr ship_collision
+  PSH ! turret_x
+  jsr turrent_collision
+  ads# 1
+  ; Generating
+  jsr GenerateShips ;jump to generate ships
+  jsr generate_bomb ;jump to generate bomb
+
+  ;Drawing
+  jsr DrawShips
+  PSH# $BA
+  jsr drawbullets
+  ADS# 1
+  PSH# $A4
+  jsr draw_bomb
+  ads# 1
+  ;cleaning stack and ending
+  POPX
+  POPA
+  fin#	0
+  RTN	; play()
+
+TIMER_CNT:	.WORD	PLAY_DELAY
+WINNER:	.WORD	NONE
+TURRETX:  .WORD	  19
+SEED:	.WORD	0
+DELTAX:	.WORD	
+DELTAY:	.WORD	
+KEY:	.WORD	
+DELAY:    	.WORD     	200000
+TIMER:	.WORD 	0
+L_WINNER:	.CHAR	'You Lost!', L_WINNER_LEN
+SHIP_ARRAY_lenth: .BLKW  20 ; to make sure we have 1 ship per row
+SHIP_ARRAY_Xpos: .BLKW  20
+SHIP_ARRAY_direction: .BLKW  20
+SHIP_SPEED: .WORD 0
+SHIP_LOCATIONRIGHT_Y: .WORD 0
+SHIP_LOCATIONRIGHT_X: .WORD 0
+SHIP_LOCATIONLEFT_Y: .WORD 0
+SHIP_LOCATIONLEFT_X: .WORD 0
+frequency_ships:   .WORD  10
+SHOOT_XPOS:  .BLKW  20
+SHOOT_YPOS:  .BLKW  20
+Bomb_ypos:  .BLKW  20
+Bomb_xpos:  .BLKW  20
+frequency_bombs: .WORD  4
+turrent_explosion: .WORD 1

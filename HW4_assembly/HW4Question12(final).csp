@@ -1,0 +1,48 @@
+	.EQU PUT_STR, $E05
+    	.EQU PUT_NL, $E06
+	.EQU GET_NUM, $E01
+	.EQU PUT_NUM, $E00
+		LDS# $E00
+BEGGINING: 	PSH# STRING_LENGTH;print the string
+		PSH# STRING ;prints string
+    		JSR PUT_STR ;takes in input 
+    		ADS# 2
+		JSR GET_NUM ;gets num
+		STA N	;stores array number in N
+		CMA# $000	;checks for number 0, if 0 jumps to end and halts
+		JEQ END
+		TAX	;compares
+COMPARE1: 	CMX# $014 ;compares to decimal number 20
+		JLE FOR1	;jumps to label FOR1
+ 		PSH# STRING_EXCP ; prints error message
+		PSH# exception
+		JSR PUT_STR
+		JSR PUT_NL ;new lines
+		JMP BEGGINING	;if it threw exception jump back to start
+FOR1:   SBX# $001	; subtracts one from index since we take in the value in reverse
+	JSR GET_NUM	;	get_num from ACC
+	STA+ ARRAY	;store that value into ARRAY
+	CMX# $000	;Compare index with 0
+	JNE FOR1	;restart loop if not equal to 0
+PSH# STRING_REVERSE;print prompt for reverse
+PSH# reverse	
+JSR PUT_STR
+JSR PUT_NL	
+PRINT1:	LDA+ ARRAY	; Get number from array 
+	JSR PUT_NUM	; put number to screen
+	ADX# $001	; add 1 to increment loop
+	CMX N	;compare to value of array size
+	JLT	PRINT1	;keeps jumping back to loop until reahed size of array
+LOOP:
+	JMP BEGGINING ; repeats entire procces
+END:	PSH# STRING_BYE;print end prompt
+	PSH# bye
+	JSR PUT_STR
+	HLT	;stops program
+
+STRING: .CHAR ':Enter size of array (max 20) >> ', STRING_LENGTH ;Defines the string
+exception: .CHAR ':invalid size! ', STRING_EXCP ;Defines the string
+reverse: .CHAR ':The array in reverse order is >> ', STRING_REVERSE ;Defines the string
+bye: .CHAR ':bye! ', STRING_BYE ;Defines the string
+N: .WORD 0 ; number of array 
+ARRAY:	.BLKW	20

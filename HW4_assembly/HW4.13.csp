@@ -1,0 +1,33 @@
+	.EQU PUT_STR, $E05
+    	.EQU PUT_NL, $E06
+    	LDA M ;loads loop variable
+    	STA M ;stores M
+    	LDS# $E00
+    	PSH# STRING_LENGTH ;print the string
+    	PSH# STRING
+    	JSR PUT_STR
+    	ADS# 2
+    	JSR $E01 ;gets User input
+    	STA Number ;stores user input
+    	CMA# Target2 ; compares number against target 2 which is 0
+    	JMP $023 ;jumps to halt
+    	JSR PUT_NL
+    	LDA N ; new loop variable
+    	LDA Number ; load in the number
+    	SHLA ;shift the bits over
+    	JNO $017 ; throws a flag 
+    	JSR $E00 ; prints out the OV flag
+    	LDA N
+    	STA N ; stores and loads new loop variable
+    	CMA# Target ; compare N against target
+    	JSR PUT_NL ; puts a new line
+    	JMP $000; restarts the whole user prompts again
+    	JMP $012 ;jumps back to line 10 to restart the loop
+    	HLT
+STRING: .CHAR 'Enter number(0 = quit)', STRING_LENGTH ;Defines the string
+M: .WORD 0
+N: .WORD 0
+Step: .WORD 1
+Target: .WORD 23
+Target2: .WORD 0
+.EQU Number, 0

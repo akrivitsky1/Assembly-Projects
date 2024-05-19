@@ -1,0 +1,32 @@
+LINE ADDR CONTENTS SOURCE LINE
+  1.                      ;ACC Loads itself with data from the location $008
+  2.  000 002008  	LDA     $008
+  3.              	;Wrong name CMP is not a real opcode, replaced with CMA
+  4.              	; CMA will compare the contents of the ACC with the contents of $00A
+  5.  001 20200A          CMA     $00A
+  6.              	;due to LT == 0, a flag is thrown and a jump does not occur
+  7.  002 4A2006          JLT     $006
+  8.              	;LDD is an invalid opcode, replaced with LDA
+  9.              	;ACC is once again loaded but this time with the data from $00A
+ 10.  003 00200A          LDA     $00A
+ 11.              	;stores the data in the ACC into location $00A
+ 12.  004 04200A          STA     $00A
+ 13.              	;jumps to location $007 
+ 14.  005 402007          JMP     $007
+ 15.                      ;$007 contains -1 which tells the program to halt
+ 16.  006 04200A  	STA     $00A
+ 17.              	;HLP replaced with HLT
+ 18.              	;tells the program to be terminated at HALT
+ 19.  007 FFFFFF          HLT
+ 20.              	; WORD 15 is located at location $008
+ 21.  008 00000F  X:      .WORD   15
+ 22.              	;word was spelled wrong, replaced WERD with WORD
+ 23.              	; WORD 25 is located at location $009
+ 24.  009 000019  Y:      .WORD   25
+ 25.              	; WORD 0 is located at location $00A
+ 26.  00A 000000  R:      .WORD   0
+ 27.                      .END
+
+                     SYMBOL TABLE CONTENTS
+
+00000A = R               000008 = X               000009 = Y               

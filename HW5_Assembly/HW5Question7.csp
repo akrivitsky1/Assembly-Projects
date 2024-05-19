@@ -1,0 +1,82 @@
+	.EQU GET_STR, $E04
+	.EQU PUT_STR, $E05
+   	.EQU PUT_NL, $E06
+	.EQU MAXCHARS, 30
+	.EQU nullcharacter, $00A
+	LDS# $E00	;Loads miniOS
+FirstPrompt: 
+	
+	PSH# STRING_LENGTH1 ;prints first string prompt
+	PSH# STRING1 
+   	JSR PUT_STR ;takes in input
+   	ADS# 2
+	PSH# MAXCHARS	;instruction for string buffer
+	PSH# BUFFER
+	PSH# ACTUAL
+	JSR GET_STR ;gets the string
+	ADS# 3
+	ADA nullcharacter ;adds a null character to the end of the string
+
+PRINT1:	
+	PSH ACTUAL ;sintruction for string buffer
+	PSH# BUFFER
+	JSR PUT_STR ;prints mirror output of string 1
+	ADS# 2
+	JSR PUT_NL ;newline
+
+SecondPrompt:	
+	PSH# STRING_LENGTH2 ;prints second string prompt
+	PSH# STRING2
+	JSR PUT_STR ;gets string 2 from input
+	ADS# 2
+	PSH# MAXCHARS ;instructions for string buffer
+	PSH# BUFFER
+	PSH# ACTUAL
+	JSR GET_STR ;gets the string2 from input
+	ADS# 3
+	ADA nullcharacter ;adds a null character to the end of the string
+
+PRINT2:	
+	PSH ACTUAL ;instructions for string buffer
+	PSH# BUFFER
+	JSR PUT_STR ;prints the mirror output of string 2
+	ADS# 2
+	JSR PUT_NL ;newline
+
+Compare: 	
+	CMA# STRING1 ;compares string 1 to string2 in characters
+	JLT PrintComp ;if string 1 is less than string 2
+	JGT PrintComp2 ;if string 1 is greater than string 2
+	JNE PrintComp3 ;if string 1 is equal to string 2
+	CMA# nullcharacter ;checks if string character is null character if it is then it is over
+	JNE loop	
+	JMP Compare
+
+PrintComp:	
+	LDA# $000 ;adds -1 to the array
+	STA+ ARRAY
+
+PrintComp2: 
+	LDA# $001 ;adds 1 to the array
+	STA+ ARRAY
+PrintComp3:	
+	LDA# $000 ;adds 0 to the array
+	STA+ ARRAY
+
+loop:	
+	LDA+ ARRAY    ; Get number from array  
+    	JSR PUT_STR   ; put number to screen
+    	ADX# $001    ; add 1 to increment loop
+    	CMX STRING_LENGTH1    ;compare to value of array size
+    	JLT PRINT1    ;keeps jumping back to loop until reahed size of array
+	JMP END
+
+END: 	HLT ;end program
+	
+
+
+ACTUAL:	.BLKW 30 ;Actual length of the character
+BUFFER:	.BLKW (MAXCHARS+3)/2 ;buffer length
+STRING1: .CHAR ':Enter String 1', STRING_LENGTH1 ;Defines the string
+STRING2: .CHAR ':Enter String 2', STRING_LENGTH2 ;Defines the string
+ARRAY: .BLKW 30;

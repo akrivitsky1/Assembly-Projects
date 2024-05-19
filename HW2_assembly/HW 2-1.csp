@@ -1,0 +1,27 @@
+        ;ACC Loads itself with data from the location $008
+	LDA     $008
+	;Wrong name CMP is not a real opcode, replaced with CMA
+	; CMA will compare the contents of the ACC with the contents of $00A
+        CMA     $00A
+	;due to LT == 0, a flag is thrown and a jump does not occur
+        JLT     $006
+	;LDD is an invalid opcode, replaced with LDA
+	;ACC is once again loaded but this time with the data from $00A
+        LDA     $00A
+	;stores the data in the ACC into location $00A
+        STA     $00A
+	;jumps to location $007 
+        JMP     $007
+        ;$007 contains -1 which tells the program to halt
+	STA     $00A
+	;HLP replaced with HLT
+	;tells the program to be terminated at HALT
+        HLT
+	; WORD 15 is located at location $008
+X:      .WORD   15
+	;word was spelled wrong, replaced WERD with WORD
+	; WORD 25 is located at location $009
+Y:      .WORD   25
+	; WORD 0 is located at location $00A
+R:      .WORD   0
+        .END

@@ -1,0 +1,74 @@
+	.EQU PUT_STR, $E05
+    	.EQU PUT_NL, $E06
+	.EQU GET_NUM, $E01
+	.EQU PUT_NUM, $E00
+		LDS# $E00
+MAIN:
+		PSH# ARR	;pushed every single element of the array
+		PSH# num_arr	
+		PSH MAXN	; not direct addressing, we needed the not exact location
+		JSR LOAD	;loads in string inputs
+		LDX# $000	;set XR to 0
+	
+LOAD: 		POPF ;pops PC to FP 
+		POPX ; pop Max N to XR
+		PSHF
+		PSH# prompt ;prints string
+		JSR PUT_STR 
+		STA INARR ;stores to lower location
+		PSH# prompt2 ;print the string
+    		JSR PUT_STR 
+		JSR GET_NUM ;gets num
+		STA NRMARR ;stores to higher location
+		PSH# prompt2 ;print the string
+    		JSR PUT_STR 
+		JSR GET_NUM ; gets num
+		STA ARRAY ;stores to frequency values
+
+SORT:
+		LDA* num_array ;load the starting address
+		STA* num_array ;stores address
+		LDX* ARRAY ;loads in the array to accumulator
+		STX MIN ;stores that value of the array into min
+		ADX $001 ; gets the next value of the array
+		STF NEXT_VAL ;stores it into the frame pointer 
+		CMF MIN ;compares against MIN
+		JLT SWAP ; if less than MIN, do swap
+SORT_START:		LDA* num_array ;loads in num_array
+		ADA# num_array ; adds one to the array
+		STA* num_array ; stores num_array
+		CMX MAXN ; compares to see if it is the end of the array
+		JLT PRINT1 ;prints out the statement if it is end of the array
+		JMP SORT ;if not jump to beginning of sort
+SWAP:
+		LDX ARRAY ; loads in array again
+		LDF NEXT_VAL ; loads in frame pointer
+		STX NEXT_VAL ; stores it in the array at that MIN element spot
+		ADX $001 ; Add one to the array
+		STX MIN ; Store the old min the next value of the array
+		JMP SORT_START ;goes back to the sorting
+		;Prints out the histogram in sorted order
+PRINT1:		LDA+ ARRAY
+		JSR PUT_NUM
+		JSR PUT_NL
+		ADX# $001
+		CMX num_array
+		JLT PRINT1
+		HLT
+;VARS FOR LOAD
+prompt: .CHAR 'Enter the lower location ', prompt_n ;Defines the string
+prompt2: .CHAR 'Enter the upper location ', STRING_REVERSE ;Defines the 
+;VARS FOR SORT/SORT START
+MIN: .WORD 0	
+NEXT_VAL: .WORD 0
+;VARS FOR MAIN
+MAXN:	.WORD 10 
+ARR:	.BLKW	10
+num_arr: .WORD 	0
+ARRAY: .BLKW 0
+num_array: .WORD 10
+;VARS
+INARR: .WORD 0 
+NRMARR: .WORD 4095
+INTEGER_SIZE: .WORD 0
+TOTAL_INTEGER: .WORD 0

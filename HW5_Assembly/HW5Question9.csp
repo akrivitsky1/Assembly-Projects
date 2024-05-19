@@ -1,0 +1,78 @@
+	.EQU MAX_CHARS,4
+	.EQU STRING, 3
+	.EQU ACTUAL,2
+	
+	.EQU KBD_CNTL, $000
+	.EQU KBD_STAT, $000
+	.EQU KBD_DATA, $001
+	.EQU CRT_CNTL, $316
+	.EQU CRT_DATA, $317
+	
+	.EQU FLUSH_BIT, $40
+	.EQU NEXT_LINE, $05
+	
+	.EQU BS, $08
+	.EQU CR, $0D
+	.EQU BEL, $07
+;takes input in to start main program
+MAIN:	INB KBD_STAT ;takes in the character to enter
+	INB KBD_DATA ;stores it in data
+	CMA $03C ;compares it against the character to see if its equal
+	JLT CLEAR ;clear if it is equal
+	JMP GET_STR ;goes to GET_STR if not equal 
+CLEAR:	CLR $000	;clears screen
+
+;setting up the stack instructions
+GET_STR:	
+	BGN# 0 ;FROM TEXTBOOK
+	PSHX
+	PSHA
+	LDX# 0
+	LDA# ':'
+	OUTB CRT_DATA
+;Creating the first loop
+G_LOOP: 	
+	INB KBD_STAT
+	JGE G_LOOP
+	INB KBD_DATA
+	CMA# CR
+	JEQ G_CR
+	CMA# BS
+	JEQ G_BS
+	CMA# ' '
+	JLT G_ERROR
+	CMA# '-'
+	JGT G_ERROR
+;checking data and incrementing XR
+G_DATA:	CMX ! MAX_CHARS
+	JEQ G_ERROR
+	STC* ! STRING
+	ADX# 1
+	OUTB CRT_DATA
+	JMP G_LOOP
+;error function for string and to flush
+G_ERROR:	LDA# BEL
+	OUTB CRT_DATA
+	LDA# FLUSH_BIT
+	OUTB KBD_CNTL
+	JMP G_LOOP
+;compare function with error and data
+G_BS:	CMX# 0
+	JEQ G_ERROR
+	SBX# 1
+	OUTB CRT_DATA
+	LDA# ' '
+	OUTB CRT_DATA
+	LDA# BS
+	OUTB CRT_DATA
+	JMP G_LOOP
+;pops stack values and returns value once program is done correctly
+G_CR:	LDA# NEXT_LINE
+	OUTB CRT_CNTL
+	STX* ! ACTUAL
+	POPA
+	POPX
+	FIN# 0
+	RTN
+	HLT
+	

@@ -1,0 +1,8 @@
+V = (A|T|G)* C (A|T|G)* C+ (A|T|G)*; 
+S2 = (A|T|C|G)* GGGG (A|T|C|G)*;
+S3 = (A|T)(A|T|G|C)* | (A|T|G|C)* (A|T); 
+S4 = (G|C); 
+
+S5= ((G|C)(G|C)(G|C)(A|T|G|C)*) | ((A|T|G|C)*(G|C)(G|C)(G|C));
+
+V|S2|S3|S4|S5

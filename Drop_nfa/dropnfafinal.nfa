@@ -1,0 +1,27 @@
+states =          {a0,a1,b0,b1,c0,c1,d0,d1}
+input_alphabet =  {0,1}
+start_state =     a0
+accept_states =   {a1,c1}
+delta = 
+		 a0,0 -> c0;
+		 a0,1 -> c0;
+		 a0,  -> {c0,c1};
+		 a1,0 -> c1;
+		 a1,1 -> c1;
+		 a1,  -> c1;
+
+		 b0,0 -> d0;
+		 b0,  -> d1;
+		 b1,0 -> d1;
+
+		 c0,1 -> a0;
+		 c0,  -> {a1,c1};
+		 c1,1 -> a1;
+		 c1,  -> c1;
+
+		 d0,0 -> a0;
+		 d0,1 -> b0;
+		 d0,  -> {a1,b1,d1};
+		 d1,0 -> a1;
+		 d1,1 -> b1;
+		 d1,  -> d1;

@@ -1,0 +1,22 @@
+states =          {q1,q2,q3,q4,q5,q6,q7,q8,q9}
+input_alphabet =  {0,1}
+start_state =     q1
+accept_states =   {q7,q8}
+delta =
+    q1,0 -> {q1,q2};
+    q1,1 -> {q1,q7};
+    q2,0 -> q3;//5
+    q2,1 -> q3;
+    q3,0 -> q4;//4
+    q3,1 -> q4;
+    q4,0 -> q5;//3
+     q4,1 -> q9;
+     q5,0 -> q6;//2
+     q5,1 -> q6;
+     q6,0 -> q7;//1
+      q6,1 -> q7;
+      
+
+      
+    
+    

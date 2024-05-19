@@ -1,0 +1,23 @@
+states =          {a,b,c,d,e,f,g,h}
+input_alphabet =  {0,1}
+start_state =     b
+accept_states =   {e,g,h}
+delta = 
+		 a,0 -> {a};
+		 a,1 -> {a};
+		 a, -> {e};
+		 b,0 -> {a,c};
+		 b,  -> {c};
+		 c,0 -> {b};
+		 c, -> {e};
+		 d,1 -> {a};
+		 d, -> {e};
+		 e,0 -> e;
+		 e,1 -> g;
+		 f,0 -> h;
+		 f,1 -> {e,g};
+		 f,  -> h;
+		 g,1 -> h;
+		 g,  -> g;
+		 h,1 -> f;
+		 h,  -> e;

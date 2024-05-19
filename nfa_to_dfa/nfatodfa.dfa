@@ -1,0 +1,19 @@
+states =          {A,B, C, AC, BC, ABC,ES}
+input_alphabet =  {0,1}
+start_state =     BC
+accept_states =   {A,B, C,BC, AC, ABC}
+delta = 
+        ES,0 -> ES;
+        ES,1 -> ES;
+		 A,0 -> BC;
+		 A,1 -> C;
+		 B,0 -> ES;
+		 B,1 -> AC;
+		 C,0 -> A;
+		 C,1 -> ES;
+		 AC,0 -> ABC;
+		 AC,1 -> C;
+		 BC,0 -> A;
+		 BC,1 -> AC;
+		 ABC,0 -> ABC;
+		 ABC,1 -> AC;

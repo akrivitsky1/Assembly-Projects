@@ -1,0 +1,15 @@
+states = {s,a,b,c,d}
+input_alphabet = {0,1}
+start_state = s
+accept_states = {s,d}
+delta =
+s, -> {c,d};
+a,0 -> c;
+a,1 -> {a,d};
+a, -> b;
+b,1 -> {b,c,d};
+b, -> b;
+c,0 -> a;
+c, -> b;
+d,0 -> {a,c};
+d, -> {b,s};
